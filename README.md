@@ -1,6 +1,6 @@
 # 🚀 Running Scripts
 
-The easiest way to run the scripts in this repository is using **[uv]()**, a modern and incredibly fast Python tool manager.
+The easiest way to run the scripts in this repository is using **[uv](https://docs.astral.sh/uv/)**, a modern and incredibly fast Python tool manager.
 
 ### 1. Install `uv`
 
