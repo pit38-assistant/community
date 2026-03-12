@@ -3,7 +3,7 @@
 The easiest way to run the scripts in this repository is using **[uv](https://docs.astral.sh/uv/)**, a modern and incredibly fast Python tool manager.
 It will automatically handle the Python interpreter and any necessary dependencies:
 ```bash
-uv run https://raw.githubusercontent.com/pit38-assistant/community/main/convert_bunq.py input.csv output.csv
+uv run https://raw.githubusercontent.com/pit38-assistant/community/main/convert_freedom.py report_2025.xlsx
 
 ```
 
