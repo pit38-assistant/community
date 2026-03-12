@@ -8,23 +8,22 @@
 
 import argparse
 import csv
+import os
 from datetime import datetime
 from decimal import Decimal
+from pathlib import Path
 from typing import TextIO
 
 
 BROKER = 'T212'
 
 
-def convert_trading212(infile: TextIO, trades_file: TextIO, income_file: TextIO) -> tuple[int, int]:
-    """Convert Trading 212 CSV to manual trade and income CSV formats.
+def convert_trading212(infile: TextIO) -> tuple[list[dict], list[dict]]:
+    """Convert Trading 212 CSV to trade and income row dicts.
 
     Returns:
-        Tuple of (trades_converted, income_converted).
+        Tuple of (trade_rows, income_rows).
     """
-    trades_converted = 0
-    income_converted = 0
-
     trade_rows = []
     income_rows = []
 
@@ -34,27 +33,15 @@ def convert_trading212(infile: TextIO, trades_file: TextIO, income_file: TextIO)
         action = row['Action'].strip()
 
         if action in ('Market buy', 'Market sell'):
-            trade_row = _convert_trade_row(row)
-            trade_rows.append(trade_row)
-            trades_converted += 1
+            trade_rows.append(_convert_trade_row(row))
 
         elif action == 'Interest on cash':
-            income_row = _convert_interest_row(row)
-            income_rows.append(income_row)
-            income_converted += 1
+            income_rows.append(_convert_interest_row(row))
 
         elif action.startswith('Dividend'):
-            income_row = _convert_dividend_row(row)
-            income_rows.append(income_row)
-            income_converted += 1
+            income_rows.append(_convert_dividend_row(row))
 
-    if trade_rows:
-        _write_trades_csv(trades_file, trade_rows)
-
-    if income_rows:
-        _write_income_csv(income_file, income_rows)
-
-    return trades_converted, income_converted
+    return trade_rows, income_rows
 
 
 def _convert_trade_row(row: dict) -> dict:
@@ -172,16 +159,8 @@ def _parse_datetime(datetime_str: str) -> datetime:
         return datetime.strptime(datetime_str, '%Y-%m-%d %H:%M:%S')
 
 
-def _write_trades_csv(outfile: TextIO, rows: list[dict]) -> None:
-    fieldnames = list(rows[0].keys())
-    writer = csv.DictWriter(outfile, fieldnames=fieldnames)
-    writer.writeheader()
-    writer.writerows(rows)
-
-
-def _write_income_csv(outfile: TextIO, rows: list[dict]) -> None:
-    fieldnames = list(rows[0].keys())
-    writer = csv.DictWriter(outfile, fieldnames=fieldnames)
+def _write_csv(outfile: TextIO, rows: list[dict]) -> None:
+    writer = csv.DictWriter(outfile, fieldnames=list(rows[0].keys()))
     writer.writeheader()
     writer.writerows(rows)
 
@@ -189,22 +168,26 @@ def _write_income_csv(outfile: TextIO, rows: list[dict]) -> None:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('input', type=argparse.FileType('r'), help='Input Trading 212 CSV file')
-    parser.add_argument('trades_output', type=argparse.FileType('w'), help='Output trades')
-    parser.add_argument('income_output', type=argparse.FileType('w'), help='Output income')
+    parser.add_argument('--trades-output', help='Output trades CSV')
+    parser.add_argument('--income-output', help='Output income CSV')
 
     args = parser.parse_args()
 
-    trades_count, income_count = convert_trading212(
-        args.input, args.trades_output, args.income_output
-    )
+    trade_rows, income_rows = convert_trading212(args.input)
+    stem = Path(args.input.name).stem
+    suffix = os.urandom(3).hex()
 
-    if args.trades_output:
-        print(f"✓ Converted {trades_count} trade(s)")
-        print(f"✓ Trades written to: {args.trades_output.name}")
+    if trade_rows:
+        trades_path = args.trades_output or f'result_trades_{stem}_{suffix}.csv'
+        with open(trades_path, 'w') as f:
+            _write_csv(f, trade_rows)
+        print(f"Wrote {len(trade_rows)} trade(s) → {trades_path}")
 
-    if args.income_output:
-        print(f"✓ Converted {income_count} income record(s)")
-        print(f"✓ Income written to: {args.income_output.name}")
+    if income_rows:
+        income_path = args.income_output or f'result_income_{stem}_{suffix}.csv'
+        with open(income_path, 'w') as f:
+            _write_csv(f, income_rows)
+        print(f"Wrote {len(income_rows)} income record(s) → {income_path}")
 
 
 if __name__ == '__main__':

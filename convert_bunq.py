@@ -8,25 +8,19 @@
 
 import argparse
 import csv
-import sys
+import os
 from datetime import datetime
+from pathlib import Path
 from typing import TextIO
 
 
 BROKER = 'BUNQ'
 
 
-def convert_bunq(infile: TextIO, outfile: TextIO) -> int:
-    """Convert bunq CSV to manual income CSV format.
-
-    Returns:
-        Number of rows converted.
-    """
-    rows_converted = 0
+def convert_bunq(infile: TextIO) -> list[dict]:
+    """Convert bunq CSV to income row dicts."""
     reader = csv.DictReader(infile)
-
-    # Prepare output rows
-    output_rows = []
+    rows = []
 
     for row in reader:
         description = row['Description'].strip()
@@ -45,7 +39,7 @@ def convert_bunq(infile: TextIO, outfile: TextIO) -> int:
         currency = description.split()[-1]
 
         symbol = f"{currency}-INT"
-        output_row = {
+        rows.append({
             'broker': BROKER,
             'tx_id': f"{symbol}:{settlement_date.isoformat()}",
             'income_type': 'INTEREST',
@@ -55,37 +49,34 @@ def convert_bunq(infile: TextIO, outfile: TextIO) -> int:
             'wht_amount': '0',
             'operation_datetime': operation_datetime.isoformat(),
             'settlement_date': settlement_date.isoformat(),
-        }
+        })
 
-        output_rows.append(output_row)
-        rows_converted += 1
+    return rows
 
-    if output_rows:
-        fieldnames = list(output_rows[0].keys())
-        writer = csv.DictWriter(outfile, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(output_rows)
 
-    return rows_converted
+def _write_csv(outfile: TextIO, rows: list[dict]) -> None:
+    writer = csv.DictWriter(outfile, fieldnames=list(rows[0].keys()))
+    writer.writeheader()
+    writer.writerows(rows)
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('input', type=argparse.FileType('r'), help='Input bunq CSV file')
-    parser.add_argument('output', type=argparse.FileType('w'), help='Output')
+    parser.add_argument('--output', help='Output income CSV')
 
     args = parser.parse_args()
 
-    try:
-        count = convert_bunq(args.input, args.output)
-        print(f"✓ Converted {count} interest payment(s)")
-        print(f"✓ Output written to: {args.output.name}")
-    except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
-        sys.exit(1)
-    finally:
-        args.input.close()
-        args.output.close()
+    income_rows = convert_bunq(args.input)
+    args.input.close()
+
+    if income_rows:
+        stem = Path(args.input.name).stem
+        suffix = os.urandom(3).hex()
+        output_path = args.output or f'result_{stem}_{suffix}.csv'
+        with open(output_path, 'w') as f:
+            _write_csv(f, income_rows)
+        print(f"Wrote {len(income_rows)} interest payment(s) → {output_path}")
 
 
 if __name__ == '__main__':

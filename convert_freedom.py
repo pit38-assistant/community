@@ -10,8 +10,10 @@
 import argparse
 import csv
 import hashlib
+import os
 import re
 from decimal import Decimal
+from pathlib import Path
 
 from openpyxl import load_workbook
 
@@ -174,23 +176,23 @@ def _write_csv(outfile, rows: list[dict]) -> None:
 def main():
     parser = argparse.ArgumentParser(description='Convert Freedom Finance Excel report to CSV')
     parser.add_argument('input', help='Input Freedom Finance .xlsx file')
-    parser.add_argument('--trades-output', help='Output trades CSV (default: freedom_trades_output_<year>.csv)')
-    parser.add_argument('--income-output', help='Output income CSV (default: freedom_income_output_<year>.csv)')
+    parser.add_argument('--trades-output', help='Output trades CSV')
+    parser.add_argument('--income-output', help='Output income CSV')
 
     args = parser.parse_args()
 
     trade_rows, income_rows = convert_freedom(args.input)
+    stem = Path(args.input).stem
+    suffix = os.urandom(3).hex()
 
     if trade_rows:
-        year = trade_rows[0]['settlement_date'][:4]
-        trades_path = args.trades_output or f'freedom_trades_output_{year}.csv'
+        trades_path = args.trades_output or f'result_trades_{stem}_{suffix}.csv'
         with open(trades_path, 'w') as f:
             _write_csv(f, trade_rows)
         print(f"Wrote {len(trade_rows)} trade(s) → {trades_path}")
 
     if income_rows:
-        year = income_rows[0]['settlement_date'][:4]
-        income_path = args.income_output or f'freedom_income_output_{year}.csv'
+        income_path = args.income_output or f'result_income_{stem}_{suffix}.csv'
         with open(income_path, 'w') as f:
             _write_csv(f, income_rows)
         print(f"Wrote {len(income_rows)} income record(s) → {income_path}")
