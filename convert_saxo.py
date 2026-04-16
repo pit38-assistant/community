@@ -166,6 +166,8 @@ def _process_pnl(sheet, costs: dict) -> list[dict]:
     # Saxo's PNL sheet is a FIFO match report: one trade split across multiple
     # lot-pairs appears as multiple rows sharing the same Buy/Sell Trade Id.
     # Aggregate quantity and amount per (direction, tx_id) to reconstruct real trades.
+    # Value Date is the sell's settlement; buy settlement isn't reported, so we
+    # fall back to Buy Trade Date.
     merged: dict[tuple[str, str], dict] = {}
 
     for row in _iter_dicts(sheet):
@@ -174,11 +176,15 @@ def _process_pnl(sheet, costs: dict) -> list[dict]:
         country = _country_iso(str(row.get('Issuer country Name', '')))
         currency = str(row.get('Currency Code', '')).strip()
         quantity = _parse_amount(row.get('Settled Quantity'))
-        settlement_date = _parse_date(row.get('Value Date'))
+        sell_trade_date = _parse_date(row.get('Sell Trade Date'))
+        sell_settlement = _parse_date(row.get('Value Date'))
+        buy_trade_date = _parse_date(row.get('Buy Trade Date'))
 
-        for direction, id_col, price_col, value_col, date_col in (
-            ('SELL', 'Sell Trade Id', 'Sell Price', 'Value of Sell', 'Sell Trade Date'),
-            ('BUY', 'Buy Trade Id', 'Buy Price', 'Value of Buy', 'Buy Trade Date'),
+        for direction, id_col, price_col, value_col, trade_date, settlement in (
+            ('SELL', 'Sell Trade Id', 'Sell Price', 'Value of Sell',
+             sell_trade_date, sell_settlement),
+            ('BUY', 'Buy Trade Id', 'Buy Price', 'Value of Buy',
+             buy_trade_date, buy_trade_date),
         ):
             tx_id = str(row.get(id_col, '')).strip()
             amount = _parse_amount(row.get(value_col))
@@ -199,8 +205,8 @@ def _process_pnl(sheet, costs: dict) -> list[dict]:
                     'quantity': quantity,
                     'amount': amount,
                     'commission': costs.get(tx_id, Decimal('0')),
-                    'operation_datetime': _parse_date(row.get(date_col)),
-                    'settlement_date': settlement_date,
+                    'operation_datetime': trade_date,
+                    'settlement_date': settlement,
                 }
 
     rows = []
