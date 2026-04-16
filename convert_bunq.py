@@ -44,6 +44,8 @@ def convert_bunq(infile: TextIO) -> list[dict]:
             'tx_id': f"{symbol}:{settlement_date.isoformat()}",
             'income_type': 'INTEREST',
             'symbol': symbol,
+            'isin': '',
+            'country': 'NL',
             'currency': currency,
             'gross_amount': amount_str,
             'wht_amount': '0',
