@@ -155,59 +155,51 @@ def _load_withholdings(sheet) -> dict:
 
 
 def _process_pnl(sheet, costs: dict) -> list[dict]:
-    rows = []
+    # Saxo's PNL sheet is a FIFO match report: one trade split across multiple
+    # lot-pairs appears as multiple rows sharing the same Buy/Sell Trade Id.
+    # Aggregate quantity and amount per (direction, tx_id) to reconstruct real trades.
+    merged: dict[tuple[str, str], dict] = {}
+
     for row in _iter_dicts(sheet):
         symbol_code = str(row.get('Instrument Symbol Code', '')).strip()
         symbol = symbol_code.split(':')[0] if ':' in symbol_code else symbol_code
         country = _country_iso(str(row.get('Issuer country Name', '')))
         currency = str(row.get('Currency Code', '')).strip()
-        quantity = str(_parse_amount(row.get('Settled Quantity')))
+        quantity = _parse_amount(row.get('Settled Quantity'))
         settlement_date = _parse_date(row.get('Value Date'))
 
-        sell_trade_id = str(row.get('Sell Trade Id', '')).strip()
-        sell_price = _parse_amount(row.get('Sell Price'))
-        sell_amount = _parse_amount(row.get('Value of Sell'))
-        sell_date = _parse_date(row.get('Sell Trade Date'))
-        sell_commission = costs.get(sell_trade_id, Decimal('0'))
+        for direction, id_col, price_col, value_col, date_col in (
+            ('SELL', 'Sell Trade Id', 'Sell Price', 'Value of Sell', 'Sell Trade Date'),
+            ('BUY', 'Buy Trade Id', 'Buy Price', 'Value of Buy', 'Buy Trade Date'),
+        ):
+            tx_id = str(row.get(id_col, '')).strip()
+            amount = _parse_amount(row.get(value_col))
+            existing = merged.get((direction, tx_id))
+            if existing:
+                existing['quantity'] += quantity
+                existing['amount'] += amount
+            else:
+                merged[(direction, tx_id)] = {
+                    'broker': BROKER,
+                    'tx_id': tx_id,
+                    'direction': direction,
+                    'symbol': symbol,
+                    'isin': '',
+                    'country': country,
+                    'currency': currency,
+                    'price': _parse_amount(row.get(price_col)),
+                    'quantity': quantity,
+                    'amount': amount,
+                    'commission': costs.get(tx_id, Decimal('0')),
+                    'operation_datetime': _parse_date(row.get(date_col)),
+                    'settlement_date': settlement_date,
+                }
 
-        rows.append({
-            'broker': BROKER,
-            'tx_id': sell_trade_id,
-            'direction': 'SELL',
-            'symbol': symbol,
-            'isin': '',
-            'country': country,
-            'currency': currency,
-            'price': str(sell_price),
-            'quantity': quantity,
-            'amount': str(sell_amount),
-            'commission': str(sell_commission),
-            'operation_datetime': sell_date,
-            'settlement_date': settlement_date,
-        })
-
-        buy_trade_id = str(row.get('Buy Trade Id', '')).strip()
-        buy_price = _parse_amount(row.get('Buy Price'))
-        buy_amount = _parse_amount(row.get('Value of Buy'))
-        buy_date = _parse_date(row.get('Buy Trade Date'))
-        buy_commission = costs.get(buy_trade_id, Decimal('0'))
-
-        rows.append({
-            'broker': BROKER,
-            'tx_id': buy_trade_id,
-            'direction': 'BUY',
-            'symbol': symbol,
-            'isin': '',
-            'country': country,
-            'currency': currency,
-            'price': str(buy_price),
-            'quantity': quantity,
-            'amount': str(buy_amount),
-            'commission': str(buy_commission),
-            'operation_datetime': buy_date,
-            'settlement_date': settlement_date,
-        })
-
+    rows = []
+    for d in merged.values():
+        for k in ('price', 'quantity', 'amount', 'commission'):
+            d[k] = str(d[k])
+        rows.append(d)
     return rows
 
 
