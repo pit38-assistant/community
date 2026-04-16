@@ -135,7 +135,7 @@ def _fix_mojibake(s: str) -> str:
 
 def _country_iso(name: str) -> str:
     name = _fix_mojibake(name.strip())
-    return _COUNTRY_MAP.get(name, name.replace(' ', ''))
+    return _COUNTRY_MAP.get(name, '')
 
 
 def _load_trading_costs(sheet) -> dict:
