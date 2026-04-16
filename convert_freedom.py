@@ -132,12 +132,16 @@ def _convert_trade_row(row: dict, direction: str) -> dict:
 
 def _convert_equity_swap_row(row: dict, profit: Decimal) -> dict:
     settlement_date = str(row.get('Settlement date', ''))
+    isin = str(row.get('ISIN') or '')
+    country = isin[:2] if len(isin) >= 2 else ''
 
     return {
         'broker': BROKER,
         'tx_id': _format_trade_id(row.get('Trade#')),
         'income_type': 'INTEREST',
         'symbol': str(row.get('Ticker', '')),
+        'isin': isin,
+        'country': country,
         'currency': str(row.get('Currency', '')),
         'gross_amount': str(profit),
         'wht_amount': '0',
@@ -149,6 +153,8 @@ def _convert_equity_swap_row(row: dict, profit: Decimal) -> dict:
 def _convert_dividend_row(row: dict) -> dict:
     date_val = str(row.get('Date', ''))
     ticker = str(row.get('Ticker', ''))
+    isin = str(row.get('ISIN') or '')
+    country = isin[:2] if len(isin) >= 2 else ''
     wht = abs(_parse_currency_amount(row.get('Tax Withheld by Broker')))
 
     # No unique ID in income sheet — generate deterministic one
@@ -159,6 +165,8 @@ def _convert_dividend_row(row: dict) -> dict:
         'tx_id': tx_id,
         'income_type': 'DIVIDEND',
         'symbol': ticker,
+        'isin': isin,
+        'country': country,
         'currency': str(row.get('Currency', '')),
         'gross_amount': str(_parse_decimal(row.get('Amount'))),
         'wht_amount': str(wht),
