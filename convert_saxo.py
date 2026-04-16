@@ -125,8 +125,16 @@ def _parse_date(value) -> str:
     return datetime.strptime(str(value).strip(), '%Y%m%d').date().isoformat()
 
 
+def _fix_mojibake(s: str) -> str:
+    """Saxo stores UTF-8 bytes as cp1252 chars (e.g. 'WÅ‚ochy' instead of 'Włochy')."""
+    try:
+        return s.encode('cp1252').decode('utf-8')
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        return s
+
+
 def _country_iso(name: str) -> str:
-    name = name.strip()
+    name = _fix_mojibake(name.strip())
     return _COUNTRY_MAP.get(name, name.replace(' ', ''))
 
 
