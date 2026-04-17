@@ -18,7 +18,7 @@ from pathlib import Path
 from openpyxl import load_workbook
 
 
-BROKER = 'Freedom'
+BROKER = 'FREEDOM'
 
 
 def convert_freedom(workbook_path: str) -> tuple[list[dict], list[dict]]:
